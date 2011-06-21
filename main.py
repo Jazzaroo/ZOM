@@ -11,15 +11,75 @@ ZOMSIZE = 20
 ZOMSPEEDMIN = 5
 ZOMSPEEDMAX = 8
 ZOMSPAWNRATE = 6
-ZOMSENSE = 120
-CIVMOVERATE = 5
+ZOMSENSE = 50
+CIVMOVERATE = 2
 CIVQTY = 8
 YELLOW = (255, 255, 0)
 GREEN = (0, 255, 0)
-NULLRECT = pygame.Rect(0, 0, 0, 0)
+
+class Entity:
+    location = None
+    target = None
+    speed = None
+    
+    def Chase( self ):
+        if self.HasTarget():
+            if self.location.colliderect( self.target ):
+                self.TargetMet()
+            else:
+                if self.location.x > self.target.x:
+                    self.location.move_ip(-self.speed,0)
+                elif self.location.x < self.target.x:
+                    self.location.move_ip(self.speed,0)
+                if self.location.y > self.target.y:
+                    self.location.move_ip(0, -self.speed)
+                elif self.location.y < self.target.y:
+                    self.location.move_ip(0, self.speed)
+                
+                    
+    def Evade( self ):
+        if self.HasTarget():
+            if self.location.x > self.target.x:
+                self.location.move_ip(self.speed,0)
+            elif self.location.x < self.target.x:
+                self.location.move_ip(-self.speed,0)
+            if self.location.y > self.target.y:
+                self.location.move_ip(0, self.speed)
+            elif self.location.y < self.target.y:
+                self.location.move_ip(0, -self.speed)
+    
+    def HasTarget( self ):
+        return self.target != None
+    
+    def TargetMet( self ):
+        self.target = None
+    
+
+class Zombie( Entity ):
+    
+    def __init__(self, C = None):
+        if C is pygame.Rect:
+            self.location = C
+        else:
+            self.location = pygame.Rect(random.randint(0,1)*WINDOWWIDTH, random.randint(0,1)*WINDOWHEIGHT, ZOMSIZE, ZOMSIZE)
+            
+        self.speed = random.randint( 1, 2 )
+        print("I AM ZOMBIE .. GWAR!")
+
+class Civilian( Entity ):
+    speed = CIVMOVERATE
+    infected = False
+    
+    def __init__(self):
+        self.location = pygame.Rect((WINDOWWIDTH/2) + random.randint(-100, 100), (WINDOWWIDTH / 2)  + random.randint(-100, 100), CIVSIZE, CIVSIZE)
+        print("I am a weenie human")
+        
+    def TargetMet(self):
+        infected = True
 
 def Terminate():
     pygame.quit()
+    
     sys.exit()
 
 def WaitForKey():
@@ -34,41 +94,29 @@ def WaitForKey():
 
 def ZomBite(c, zombies):
     for z in zombies:
-        if c['rect'].colliderect(z['rect']):
-            z['target'] = NULLRECT
+        if c.location.colliderect(z.location):
+            z.target = None
             return True
     return False
 
 def ZomMove(civies, zombies):
     for z in zombies:
-        if z['target'] == NULLRECT:
-            for c in civies:
-                czdistx = abs(z['rect'].x - c['rect'].x)
-                czdisty = abs(z['rect'].y - c['rect'].y)
-                if czdistx <= ZOMSENSE and czdisty <= ZOMSENSE:
-                    z['target'] = c['rect']
-                    break
-        if z['target'] != NULLRECT:
-                if z['rect'].x - z['target'].x > 0:
-                    z['rect'].move_ip(z['speed'],0)
-                if z['rect'].x - z['target'].x < 0:
-                    z['rect'].move_ip(-z['speed'],0) #test to see if need -1 *
-                if z['rect'].y - z['target'].y > 0:
-                    z['rect'].move_ip(0, z['speed'])
-                if z['rect'].y - z['target'].y < 0:
-                    z['rect'].move_ip(0, -z['speed'])
-        else:
-                z['target'].x = random.randrange(-400, 400, 100) + z['rect'].x
-                z['target'].y = random.randrange(-400, 400, 100) + z['rect'].y
-                if z['rect'].x - z['target'].x > 0:
-                    z['rect'].move_ip(z['speed'],0)
-                if z['rect'].x - z['target'].x < 0:
-                    z['rect'].move_ip(-z['speed'],0) #test to see if need -1 *
-                if z['rect'].y - z['target'].y > 0:
-                    z['rect'].move_ip(0, z['speed'])
-                if z['rect'].y - z['target'].y < 0:
-                    z['rect'].move_ip(0, -z['speed'])
-                
+        for c in civies:
+            czdistx = abs(z.location.x - c.location.x)
+            czdisty = abs(z.location.y - c.location.y)
+            if czdistx <= ZOMSENSE and czdisty <= ZOMSENSE:
+                print( "Found a human" )
+                z.target = c.location
+                c.target = z.location
+                break
+        
+        if not z.HasTarget():
+            newrect = pygame.Rect( random.randint(0,WINDOWWIDTH),
+                                   random.randint(0,WINDOWHEIGHT), ZOMSIZE, ZOMSIZE )
+            z.target = newrect
+            
+        z.Chase()
+                                
 def DrawBigText(text, bigfont, surface, x, y):
     textobj = bigfont.render(text, 1, TEXTCOLOR)
     textrect = textobj.get_rect()
@@ -82,17 +130,10 @@ def DrawSmText(text, smfont, surface, x, y):
     surface.blit(textobj, textrect)
 
 def ZomSpawn():
-    newzom = {'rect': pygame.Rect(random.randint(0,1)*WINDOWWIDTH, random.randint(0,1)*WINDOWHEIGHT, ZOMSIZE, ZOMSIZE),
-              'speed':random.randint (ZOMSPEEDMIN, ZOMSPEEDMAX),
-              'target': NULLRECT
-              }
-    zombies.append(newzom)
+    zombies.append( Zombie() )
 
 def CivSpawn():
-    newciv = {'rect': pygame.Rect((WINDOWWIDTH/2) + random.randint(-100, 100), (WINDOWWIDTH / 2)  + random.randint(-100, 100), CIVSIZE, CIVSIZE),
-              'infect': False
-              }
-    civies.append(newciv)
+    civies.append( Civilian() )
 
 # Set up pygame and the game surface window
 pygame.init()
@@ -141,21 +182,23 @@ while True:
         #Bite Civies, if possible
         for c in civies:
             if ZomBite(c, zombies):
-                c['infect'] = True
+                c.infected = True
         #Remove Bitten Civies
         zify = []
         for c in civies:
-            if c['infect'] == True:
+            if c.infected == True:
                 zify.append(c)
-                zombies.append(c)
+                zombies.append(Zombie( c.location ) )
+            else:
+                c.Evade()
         for victim in zify:
             civies.remove(victim)
         
         #Draw Zombies and Civies
         for z in zombies:    
-            pygame.draw.rect(WindowSurface, GREEN, z['rect'])
+            pygame.draw.rect(WindowSurface, GREEN, z.location)
         for c in civies:
-            pygame.draw.rect(WindowSurface, YELLOW, c['rect'])
+            pygame.draw.rect(WindowSurface, YELLOW, c.location)
         
         pygame.display.update()
         
